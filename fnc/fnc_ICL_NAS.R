@@ -6,7 +6,7 @@ library(XLConnect)
 wb <- loadWorkbook(paste0("../1_sagatavosana/ICL_", year, "_aprekini.xlsx"),
                    create = FALSE,
                    password = NULL)
-ws <- readWorksheet(wb, sheet = "all_transposed")
+ws <- readWorksheet(wb, sheet = "all_transpose") 
 rm(wb)
 detach("package:XLConnect", unload = TRUE)
 
@@ -15,8 +15,7 @@ colnames(ws) <- ws[1, ]
 colnames(ws)[4] <- "indicator"
 colnames(ws)[5] <- "ICL_value_NAS"
 ws <- ws[-1, ]
-rownames(ws) <- NULL #7980
-#ailes <- colnames(ws)
+rownames(ws) <- NULL 
 
 #2 saglabā datus
 assign("NAS_data", ws)
