@@ -1,106 +1,57 @@
-#----------------Izstrādā NAS un AS
-#path <- file.path(base_path, paste0(year, "Q", Q))
 c <- c("NAS", "AS")
+IID <- data.frame()
 
 for (i in c) {
 #1 Ielādē šablonu
-#template_path <- file.path(path, "izstrade", "intermediate_tables", paste0(c[i], ".RData"))
-#load(template_path) #5529
-#assign("t", get(c[i])) 
-t <- get(c[i])
-rm(list = c[i])
-t$forMerge <- paste0(t$T, "_", t$N)
+t <- get(i)
+rm(list = i)
 
-#2 Ielādē ceturkšņa indeksus
-data_path <- file.path(paste0("../sagatavošana/intermediate_tables"))
-if(c[i] == "NAS") {
-  nasICL <- NAS(year, Q)
-  #load(paste0("..gatavs_nasLCI_00Q1_", substr(year, 3, 4), "Q", Q, ".RData"))
-  } else {
-    load(paste0("..gatavs_saLCI_00Q1_", substr(year, 3, 4), "Q", Q, ".RData"))}
+#2 Ielādē ICL datus
+n <- ICL_dati(year, Q, i)
 
-d <- nasICL #8232 ---- "d" for data
-rm(nasICL)
+#PĀRBAUDE VAI JAU ATKAL NEESI AIZMIRSUSI TRANSPONĒT
+a <- paste0("ICL_value_", i)
+if (sum(n[ , a][n$Gads == year] < 100, na.rm = TRUE) > 0) {
+  stop("Failos 'aprēķini_yyyy.xlsx' vai 'ICL_yyyyCq_AS.xls' pirms Macros palaišanas esi aizmirsusi transponēt datus!")
+}
 
+#3 Noformē
+#  pārmaini indikatoru
+n$ii[n$ii == "Total"] <- "LC_TOTAL"
+n$ii[n$ii == "Wages"] <- "LC_WAG_TOT"
+n$ii[n$ii == "Other"] <- "LC_OTH"
 
-#3 No LCI datu tabulas izņemt N agregātus B-N un O-S
-d <- d[!d$ACTIVITY %in% c("BTN", "OTS"), ] #7220
-d$ACTIVITY[d$ACTIVITY == "BTS"] <- "B-S"
+#  izveido time_period
+n$time_period <- paste0(n$Gads, "Q", n$Q)
+n$Gads <- NULL
+n$Q <- NULL
+n <- n[ , c("time_period", "Nace", "ii", a)]
 
-# Savienošanas aile
-d$forMerge <- paste0(substr(d$T_PERIOD, 1, 4), 
-                          substr(d$T_PERIOD, 6, 7), "_", d$ACTIVITY)
+#  izveido savienošanaa agregātu
+n$forMerge <- paste0(n$time_period, n$ii, "_", n$Nace)
+t$forMerge <- paste0(t$T, t$I, "_", t$NACE)
+t_order <- t$forMerge
 
-# No nasICL izņem indikatoru “Total_except_bonuses” un izdala ailes
-d <- d[d$I != "LCI_TXB", ] #5358
+if (any(c(length(t$forMerge[!(t$forMerge %in% n$forMerge)]), length(n$forMerge[!(t$forMerge %in% n$forMerge)])) != 0)) {
+  stop("5_IID010c_final_NAS&AS: Savienojamo vērtību nesakritība.") 
+}
 
-testV <- switch(
-  c[i],
-  "NAS" = "N",
-  "AS" = "Y"
-)
+#4 Savieno
+mergedDF <- merge(t, n[ , c(a, "forMerge")], by.x = "forMerge", by.y = "forMerge")
+# pārcel datus
+mergedDF$I2020 <- mergedDF[ , a]
+# sakārto apakštabulu
+mergedDF <- mergedDF[order(match(mergedDF$forMerge, t_order)), ]
+mergedDF <- mergedDF[ , ailes_order]
+rownames(mergedDF) <- NULL
+rm(n, t, t_order)
 
-if(sum(d$A_S == testV) == nrow(d) & sum(t$forMerge %in% d$forMerge) == nrow(d)) {
-  d <- d[ , c("I", "OBS_VALUE", "forMerge")]
+#5 Pēdējās pārbaudes un noglabā
+if (sum(mergedDF$S == i) == nrow(mergedDF)) {
+  IID <- rbind(IID, mergedDF)
+  rm(mergedDF)
 } else {
-  stop("Visi dati nav sezonāli koriģēti.")
+  stop("5_IID010c_final_NAS&AS: S ailē norāde neatbilst.")
 }
-rm(testV)
-
-#5 Sadala šablonu pa I
-t$I <- factor(t$I)
-
-T_split <- split(t, t$I)
-names(T_split) <- paste0(c[i], "_", names(T_split))
-temp_T <- names(T_split)
-list2env(T_split, envir = .GlobalEnv)
-rm(T_split, t)
-
-#6 Sadala LCI datus
-d$I <- factor(d$I)
-
-D_split <- split(d, d$I)
-names(D_split) <- paste0(tolower(c[i]), "_", names(D_split))
-list2env(D_split, envir = .GlobalEnv)
-rm(D_split, d)
-
-#7 Datu savienošanas funkcija
-for(j in 1:length(temp_T)) {
-  x1 <- temp_T[j]
-  
-  x2 <- ifelse(
-    x1 == paste0(c[i], "_LC_OTH"),
-    paste0(tolower(c[i]), "_LCI_O"),
-    ifelse(
-      x1 == paste0(c[i], "_LC_TOTAL"),
-      paste0(tolower(c[i]), "_LCI_T"),
-      ifelse(
-        x1 == paste0(c[i], "_LC_WAG_TOT"),
-        paste0(tolower(c[i]), "_LCI_WAG"),
-        print("Nepareizs tabulas nosaukums vektorā.")
-      )
-    )
-  )
-  
-  
-  mergedDF <- merge(get(x1), get(x2)[ , c("OBS_VALUE", "forMerge")], by.x = "forMerge", by.y = "forMerge")
-  mergedDF$I2020 <- mergedDF$OBS_VALUE
-  mergedDF$OBS_VALUE <- NULL
-  mergedDF$forMerge <- NULL
-  assign(paste0("gatavs_", j), mergedDF)
-  rm(list = c(x1, x2), mergedDF, x1, x2)
 }
-rm(j, temp_T)
-
-#8 Sašuj gatavās tabulas kopā un noglabā
-y <- rbind(gatavs_1, gatavs_2, gatavs_3)
-rm(gatavs_1, gatavs_2, gatavs_3)
-
-assign(paste0("gatavs_", c[i]), y)
-#intermediate_path <- file.path(path, "izstrade", "intermediate_tables")
-#save(list = paste0("gatavs_", c[i]), file = file.path(intermediate_path, paste0("gatavs_", c[i], "00Q1_", substr(year, 3, 4), "Q", Q, ".RData")))
-
-#rm(list = paste0("gatavs_", c[i]), y)
-}
-
 rm(c, i)
