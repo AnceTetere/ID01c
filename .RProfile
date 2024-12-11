@@ -1,0 +1,35 @@
+#Definē periodu, par kuru tiek veidota atskaite.
+if (interactive()) {
+  cat("Ievadīt gadu, par kuru tiek veidota datne:\n")
+  year <- as.integer(readline())
+  
+  cat("Ievadīt ceturksni, par kuru tiek veidota datne:\n")
+  Q <- as.integer(readline())
+  message("\n ID01c izstrāde par ", year, ". gada ", Q, ". ceturksni. \n
+          Tiek ielādētas pakotnes here un XLConnect. \n")
+}
+#Notīra no iepriekšējās reizes palikušo gala failu, lai nesajaucas.
+if (file.exists("R/output/ID01c_final.csv")) {
+  file.remove("R/output/ID01c_final.csv")}
+
+#Ielādē pakotnes
+library(here)
+library(XLConnect)
+
+#Ielādē funkcijas
+source("R/fnc/template.R")
+source("R/fnc/templateQ.R")
+source("R/fnc/finalTemplate.R")
+source("R/fnc/templateSplit_NS_SS.R")
+source("R/fnc/IDD.R")
+source("R/fnc/printOut.R")
+source("R/fnc/cleanUp.R")
+source("R/fnc/fnc_IC_NS.R")
+source("R/fnc/fnc_IC_dati.R")
+source("R/fnc/fnc_percentChange.R")
+
+Sys.setenv(JAVA_OPTS = "-Xmx8g")
+options(digits = 22)
+
+#Palaiž programmu
+source("R/MAIN.R")
